@@ -1,0 +1,423 @@
+# Hybrid LSTM-Autoencoder Model for Wheat Price Prediction and Anomaly Detection
+
+## Overview
+
+This repository contains the complete implementation of a hybrid deep learning ensemble framework for wheat price prediction and anomaly detection in the Turkish wheat market. The system combines four regression models (Linear Regression, Random Forest, Support Vector Regression, and LSTM+Attention) with an Autoencoder-based anomaly detection module to provide accurate price forecasts and identify anomalous market conditions.
+
+**Study Period:** June 1, 2022 - May 4, 2023 (239 trading days)**Dataset Size:** 38,019 records**Test Set Performance:** R² = 0.9942, MAE = 0.1646 TL
+
+---
+
+## Repository Structure
+
+```
+WHEAT_ANALYSIS_MEGA_PACKAGE/
+│
+├── 01_ORIGINAL_DATA/
+│   ├── raw_data.csv                 # Original wheat price dataset (38,019 records)
+│   ├── raw_data1.xlsx               # Alternative raw data format
+│   └── processed_data.csv           # Preprocessed dataset
+│
+├── 02_MODELS/
+│   ├── linear_regression.pkl        # Trained Linear Regression model
+│   ├── random_forest.pkl            # Trained Random Forest model
+│   ├── svr.pkl                      # Trained Support Vector Regression model
+│   ├── lstm_attention.h5            # Trained LSTM+Attention model
+│   ├── autoencoder.h5               # Trained Autoencoder for anomaly detection
+│   └── encoder.h5                   # Encoder component of Autoencoder
+│
+├── 03_SCALERS_AND_ENCODERS/
+│   ├── scaler_X_min.npy             # Feature normalization minimum value
+│   ├── scaler_X_scale.npy           # Feature normalization scale value
+│   ├── scaler_y_min.npy             # Price normalization minimum value
+│   ├── scaler_y_scale.npy           # Price normalization scale value
+│   ├── anomaly_threshold.npy        # Anomaly detection threshold (0.001378)
+│   ├── sinif_encoder.npy            # Category encoder for classification
+│   └── urun_encoder.npy             # Product encoder
+│
+├── 04_TRAINING_DATA/
+│   ├── X_train_val.npy              # Training and validation features (22,811 samples)
+│   ├── y_train_val.npy              # Training and validation prices
+│   ├── X_val.npy                    # Validation features (7,604 samples)
+│   └── y_val.npy                    # Validation prices
+│
+├── 05_TEST_DATA/
+│   ├── X_test_holdout.npy           # Holdout test features (7,604 samples)
+│   └── y_test_holdout.npy           # Holdout test prices
+│
+├── 06_PREDICTIONS/
+│   ├── y_pred_ensemble.npy          # Ensemble model predictions
+│   ├── y_pred_test_lr.npy           # Linear Regression predictions
+│   ├── y_pred_test_rf.npy           # Random Forest predictions
+│   └── y_pred_test_lstm.npy         # LSTM predictions
+│
+├── 07_ANOMALY_DETECTION/
+│   ├── test_mse.npy                 # Reconstruction error (MSE) for test set
+│   ├── test_mse_external.npy        # Reconstruction error for external test set
+│   ├── y_test_anomaly.npy           # Anomaly labels for test set
+│   ├── y_test_anomaly_external.npy  # Anomaly labels for external test set
+│   └── X_test_pred_external.npy     # Autoencoder predictions on external data
+│
+├── 08_ANALYSIS_RESULTS/
+│   ├── all_models_comparison.csv    # Performance comparison of all 5 models
+│   ├── external_data_performance.csv # Holdout test set performance metrics
+│   ├── feature_importance_shap.csv  # SHAP-based feature importance analysis
+│   ├── feature_importance_rf.csv    # Random Forest feature importance
+│   ├── cv_linear_regression.csv     # 5-fold CV results for Linear Regression
+│   ├── cv_random_forest.csv         # 5-fold CV results for Random Forest
+│   ├── cv_svr.csv                   # 5-fold CV results for SVR
+│   ├── cv_overfitting_gap.csv       # Overfitting analysis across folds
+│   ├── anomaly_detailed_analysis.csv # Detailed anomaly detection results
+│   ├── data_split_summary.csv       # Data split statistics
+│   └── [11 additional analysis files]
+│
+├── 09_LOGS/
+│   ├── data_preprocessing.log       # Data preprocessing execution log
+│   ├── data_split.log               # Data splitting log
+│   ├── baseline_models.log          # Baseline model training log
+│   ├── lstm_training.log            # LSTM model training log
+│   ├── autoencoder.log              # Autoencoder training log
+│   ├── autoencoder_external_test.log # External test evaluation log
+│   ├── ensemble_training.log        # Ensemble model training log
+│   └── feature_engineering.log      # Feature engineering log
+│
+├── 10_PRODUCTION_READY/
+│   ├── predict.py                   # Production prediction script
+│   ├── linear_regression.pkl        # Production Linear Regression model
+│   ├── random_forest.pkl            # Production Random Forest model
+│   ├── svr.pkl                      # Production SVR model
+│   ├── lstm_attention.h5            # Production LSTM model
+│   ├── autoencoder.h5               # Production Autoencoder model
+│   ├── scaler_*.npy                 # Normalization parameters
+│   ├── anomaly_threshold.npy        # Anomaly threshold
+│   └── [additional production files]
+│
+├── 11_VISUALIZATIONS/
+│   ├── Figure_1_DataSet.py          # Dataset overview and statistics
+│   ├── Figure_2_Model_Architecture_Code.py # Model architecture visualization
+│   ├── Figure_3.py                  # Model performance and interpretability
+│   ├── Figure_4.py                  # Robustness and anomaly detection
+│   └── MDPI_VISUALIZATIONS_UPDATED/ # Updated figures for MDPI (600 DPI)
+│       ├── Figure_1_Dataset_Updated.py
+│       ├── Figure_2_Model_Architecture_Updated.py
+│       ├── Figure_3_Updated.py
+│       └── Figure_4_Updated.py
+│
+├── 12-ablation_analysis_package/    # Ablation analysis scripts and results
+│   ├── ablation_results.csv         # Ablation analysis results
+│   ├── ablation_study.py            # Ablation study script (v1)
+│   └── ablation_study_v2.py         # Ablation study script (v2 - final)
+│
+└── PSEUDOCODE.docx                  # Complete pseudocode documentation
+```
+
+---
+
+## Dataset Description
+
+**Total Records:** 38,019**Time Period:** June 1, 2022 - May 4, 2023**Data Split:**
+
+- Training: 22,811 samples (60%)
+
+- Validation: 7,604 samples (20%)
+
+- Test (Holdout): 7,604 samples (20%)
+
+**Features:** 31 input features including:
+
+- Quality parameters: moisture, hectolitre weight, protein content, defective grains, broken grains, etc.
+
+- Market features: price-quality ratio, price trend, price volatility
+
+- Categorical features: classification, product type
+
+**Target Variable:** Unit Price (TL - Turkish Lira)
+
+---
+
+## Model Architecture
+
+### Ensemble Framework
+
+The system combines four regression models with optimized weights:
+
+| Model | Weight | Test R² | Test MAE (TL) | Test RMSE (TL) |
+| --- | --- | --- | --- | --- |
+| Linear Regression | 0.2551 | 1.0000 | 0.0000 | 0.0000 |
+| Random Forest | 0.2549 | 0.9995 | 0.0103 | 0.0571 |
+| SVR | 0.2371 | 0.9297 | 0.5844 | 0.7024 |
+| LSTM+Attention | 0.2528 | 0.9912 | 0.1782 | 0.2479 |
+| **Ensemble** | - | **0.9942** | **0.1646** | **0.2016** |
+
+### Anomaly Detection
+
+- **Method:** Autoencoder with reconstruction error
+
+- **Threshold:** 0.001378
+
+- **Detection Rate:** 390 anomalies (5.13%) in test set
+
+- **Normal Records:** 7,214 (94.87%)
+
+---
+
+## Model Performance
+
+### Holdout Test Set Results (n=7,604)
+
+**Regression Performance:**
+
+- Ensemble R² Score: 0.9942
+
+- Mean Absolute Error (MAE): 0.1646 TL
+
+- Root Mean Squared Error (RMSE): 0.2016 TL
+
+- Mean Absolute Percentage Error (MAPE): 5.16%
+
+**Cross-Validation Stability (5-Fold):**
+
+- Mean Test R²: 0.9971 ± 0.0028
+
+- Mean Train R²: 0.9995 ± 0.0001
+
+- No significant overfitting detected
+
+**Anomaly Detection Performance:**
+
+- Detected Anomalies: 390 (5.13%)
+
+- Normal Records: 7,214 (94.87%)
+
+- Reconstruction Error Range: 0.0001 - 0.0500
+
+---
+
+## Feature Importance (SHAP Analysis)
+
+Top features by SHAP importance:
+
+| Feature | SHAP Value | Importance |
+| --- | --- | --- |
+| Price-Quality Ratio | 0.9908 | 99.08% |
+| Quality Score | 0.0059 | 0.59% |
+| Price Trend | 0.0012 | 0.12% |
+| Total Defects | 0.0005 | 0.05% |
+| Other Features | <0.0005 | <0.05% |
+
+---
+
+## Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/yeldafrt/Hybrid-LSTM-Autoencoder-Model-for-Wheat-Prices.git
+cd Hybrid-LSTM-Autoencoder-Model-for-Wheat-Prices
+
+# Install dependencies
+pip install numpy pandas scikit-learn tensorflow
+
+# Python version requirement
+python >= 3.11
+```
+
+### Usage
+
+#### 1. Simple Prediction
+
+```python
+from production_ready.predict import WheatPricePredictor
+import numpy as np
+
+# Initialize predictor
+predictor = WheatPricePredictor(model_dir='02_MODELS' )
+
+# Load your data (31 features)
+X = np.load('your_data.npy')
+
+# Make predictions with anomaly detection
+results = predictor.predict_with_anomaly_detection(X)
+
+# View results
+print(results.head())
+```
+
+#### 2. Price Prediction Only
+
+```python
+prices = predictor.predict_price(X)
+print(f"Predicted prices: {prices}")
+```
+
+#### 3. Anomaly Detection Only
+
+```python
+anomalies, mse = predictor.detect_anomalies(X)
+print(f"Anomalies detected: {(anomalies == 1).sum()}")
+```
+
+---
+
+## Input Features (31 Total)
+
+The model expects 31 input features in the following order:
+
+1. Moisture (Rutubet)
+
+1. Hectolitre Weight (Hektolitre)
+
+1. Protein Content (Protein)
+
+1. Defective Grains (Kusurlu Taneler)
+
+1. Broken Grains (Kırık Tane)
+
+1. Shriveled Grains (Çiliz Burışuk)
+
+1. Foreign Material (Yabancı Madde)
+
+1. Husk (Kavuz) 9-31. [Additional quality and market features]
+
+---
+
+## Output Format
+
+### Prediction Output
+
+```
+DataFrame with columns:
+- Predicted_Price_TL: Forecasted price in Turkish Lira
+- Is_Anomaly: Binary anomaly label (0=normal, 1=anomaly)
+- Reconstruction_Error: MSE value from Autoencoder
+- Anomaly_Risk: Risk level (HIGH/LOW)
+```
+
+---
+
+## Key Results
+
+- **Best Model:** Ensemble (R² = 0.9942)
+
+- **Anomaly Detection Rate:** 5.13%
+
+- **Cross-Validation Stability:** Mean R² = 0.9971
+
+- **Feature Dominance:** Price-Quality Ratio explains 99.08% of variance
+
+- **Generalization:** No overfitting detected (Train R² ≈ Test R²)
+
+---
+
+## Files Description
+
+### Data Files
+
+- `01_ORIGINAL_DATA/`: Raw and processed datasets
+
+- `04_TRAINING_DATA/`: Training and validation sets
+
+- `05_TEST_DATA/`: Holdout test set for final evaluation
+
+### Model Files
+
+- `02_MODELS/`: Trained model weights and parameters
+
+- `03_SCALERS_AND_ENCODERS/`: Normalization parameters required for predictions
+
+### Results Files
+
+- `06_PREDICTIONS/`: Model predictions from each algorithm
+
+- `07_ANOMALY_DETECTION/`: Anomaly detection results and reconstruction errors
+
+- `08_ANALYSIS_RESULTS/`: Comprehensive performance metrics and analysis
+
+### Documentation
+
+- `09_LOGS/`: Execution logs for all training and evaluation steps
+
+- `10_PRODUCTION_READY/`: Production deployment package
+
+- `11_VISUALIZATIONS/`: Figure generation scripts (Figures 1-4)
+
+- `PSEUDOCODE.docx`: Complete algorithm pseudocode
+
+---
+
+## Requirements
+
+- Python >= 3.11
+
+- NumPy >= 1.21
+
+- Pandas >= 1.3
+
+- Scikit-learn >= 1.0
+
+- TensorFlow >= 2.10
+
+---
+
+## Dataset Download
+
+Due to GitHub file size limitations, the complete dataset and model files have been split into three parts. Please download all three parts and extract them in the same directory to reconstruct the complete package.
+
+### Download Instructions
+
+**Part I:** WHEAT_ANALYSIS_COMPLETE_MEGA_PACKAGE_PART_I.zip
+- Contains: Original data, training/test data, scalers, encoders, and documentation
+- Includes: raw_data.csv, raw_data1.xlsx, processed_data.csv, training data (X_train_val.npy, y_train_val.npy, X_val.npy, y_val.npy), test data (X_test_holdout.npy, y_test_holdout.npy), scaler files, encoders, and PSEUDOCODE.docx
+- Size: 11 MB
+
+**Part II:** WHEAT_ANALYSIS_COMPLETE_MEGA_PACKAGE_PART_II.zip
+- Contains: All trained models
+- Includes: Linear Regression, Random Forest, SVR, LSTM+Attention, Autoencoder, Encoder
+- Size: 20 MB
+
+**Part III:** WHEAT_ANALYSIS_COMPLETE_MEGA_PACKAGE_PART_III.zip
+- Contains: Data, predictions, analysis, logs, and documentation
+- Includes: Training/test data, predictions, anomaly detection, analysis results, logs, visualizations, pseudocode
+- Size: 21 MB
+
+### Extraction Steps
+
+1. Download all three ZIP files
+2. Extract Part I to a directory: `WHEAT_ANALYSIS_MEGA_PACKAGE/`
+3. Extract Part II to the same directory (merge contents)
+4. Extract Part III to the same directory (merge contents)
+5. The complete package will be reconstructed with all directories intact
+
+```bash
+# Example extraction (Linux/macOS)
+unzip WHEAT_ANALYSIS_COMPLETE_MEGA_PACKAGE_PART_I.zip
+unzip WHEAT_ANALYSIS_COMPLETE_MEGA_PACKAGE_PART_II.zip -d WHEAT_ANALYSIS_MEGA_PACKAGE/
+unzip WHEAT_ANALYSIS_COMPLETE_MEGA_PACKAGE_PART_III.zip -d WHEAT_ANALYSIS_MEGA_PACKAGE/
+```
+
+### Total Package Size
+
+- **Part I Size:** 11 MB
+- **Part II Size:** 20 MB
+- **Part III Size:** 21 MB
+- **Total Download Size:** 52 MB
+- **Extracted Size:** ~100 MB
+- **All Files Included:** Yes, complete package with all 11 directories and PSEUDOCODE.docx
+
+---
+
+
+
+---
+
+```
+
+```
+
+---
+
+
+
+---
+
